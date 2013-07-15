@@ -1,0 +1,18 @@
+{
+    "name": "sraka1/GuzzleExtraPlugins",
+    "type": "library",
+    "description": "Extra plugins for Guzzle.",
+    "keywords": ["guzzle", "plugins"],
+    "homepage": "http://github.com/sraka1/GuzzleExtraPlugins",
+    "authors": [
+        {
+            "name": "Jakob Murko",
+            "email": "jakob@zepppelin.com"
+        }
+    ],
+    "autoload": {
+        "classmap": [
+            "../"
+        ]
+    }
+}

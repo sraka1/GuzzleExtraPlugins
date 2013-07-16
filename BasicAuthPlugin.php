@@ -7,7 +7,7 @@ use Guzzle\Common\Event;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * ZeppBasicAuthPlugin plugin
+ * BasicAuthPlugin plugin
  *
  * A plugin to sign basic auth requests
  *
@@ -15,14 +15,22 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  */
 class BasicAuthPlugin implements EventSubscriberInterface
 {
+
+    /** @var int Application config file */
+    private $config;
+
+    /** @var int Connection data from the database */
+    private $connData;
+
     /**
      * Constructor.
      *
      * @param $config Config
      */
-    public function __construct($config)
+    public function __construct($config, $connData)
     {
         $this->config = $config;
+        $this->connData = $connData;
     }
 
     /**
@@ -36,6 +44,25 @@ class BasicAuthPlugin implements EventSubscriberInterface
     }
 
     /**
+     * Replace variables with the ones from the DB
+     * @param  array $config   Config array.
+     * @param  array $connData Connection data.
+     * @return void
+     */
+    private function replaceVars()
+    {
+        $tempArray = array();
+        $config = json_encode($this->config);
+        foreach ($this->connData as $k => $v) //$connData is now array(:token => "sklmn", :key => "blkmn")
+        {
+            $x = str_replace(':'.$k, $v, $config);
+        }
+        $this->config = json_decode($config, true);
+
+    }
+
+
+    /**
      * Add auth to every request
      *
      * @param \Guzzle\Common\Event $event The `request.before_send` event object.
@@ -45,12 +72,18 @@ class BasicAuthPlugin implements EventSubscriberInterface
         /** @var $request \Guzzle\Http\Message\Request */
         $request = $event['request'];
 
-        foreach($config as $key => $param)
+        $this->replaceVars();
+
+        foreach($this->config as $key => $param)
         {
+
             if ($param['type']==='query') {
                 $request->getQuery()->set($param['key'], $param['value']);
             }
             else if ($param['type']==='header') {
+                $request->addHeader($param['key'], $param['value']);
+            }
+            else if ($param['type']==='httpAuth') {
                 $request->addHeader($param['key'], $param['value']);
             }
         }

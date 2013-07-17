@@ -49,7 +49,7 @@ class BasicAuthPlugin implements EventSubscriberInterface
      * @param  array $connData Connection data.
      * @return void
      */
-    private function replaceVars()
+    /*private function replaceVars()
     {
         $tempArray = array();
         $config = json_encode($this->config);
@@ -59,7 +59,7 @@ class BasicAuthPlugin implements EventSubscriberInterface
         }
         $this->config = json_decode($config, true);
 
-    }
+    }*/
 
 
     /**
@@ -72,11 +72,8 @@ class BasicAuthPlugin implements EventSubscriberInterface
         /** @var $request \Guzzle\Http\Message\Request */
         $request = $event['request'];
 
-        $this->replaceVars();
-
-        foreach($this->config as $key => $param)
+        foreach($this->config['auth'] as $key => $param)
         {
-
             if ($param['type']==='query') {
                 $request->getQuery()->set($param['key'], $param['value']);
             }
@@ -84,7 +81,7 @@ class BasicAuthPlugin implements EventSubscriberInterface
                 $request->addHeader($param['key'], $param['value']);
             }
             else if ($param['type']==='httpAuth') {
-                $request->addHeader($param['key'], $param['value']);
+                $request->setAuth($param['key'], $param['value']);
             }
         }
     }

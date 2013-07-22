@@ -64,8 +64,21 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
         }
 
         $transaction = array('request' => $request, 'response' => $response);
-
-        $this->saveTransaction(array('request' => serialize($request), 'response' => serialize($response)));
+        $this->saveTransaction
+        (
+            json_encode
+            (
+                array
+                (
+                    'request' => $request->getRawHeaders(),
+                    'response' => array
+                    (
+                        'headers' => $response->getRawHeaders(),
+                        'body' => $response->getBody(true)
+                    )
+                )
+            )
+        );
 
         $this->transactions[] = $transaction;
         if (count($this->transactions) > $this->getlimit()) {
@@ -83,7 +96,7 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     private function saveTransaction($transaction)
     {
         //$this->redis->ZADD($this->id, microtime(true), json_encode($transaction));
-        $this->redis->addToSortedSet($this->id, serialize($transaction), time());
+        $this->redis->addToSortedSet($this->id, $transaction, time());
         $this->redis->expire($this->id, $this->expire);
     }
 

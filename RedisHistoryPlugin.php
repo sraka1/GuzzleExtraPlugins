@@ -64,21 +64,12 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
         }
 
         $transaction = array('request' => $request, 'response' => $response);
-        $this->saveTransaction
-        (
-            json_encode
-            (
-                array
-                (
-                    'request' => $request->getRawHeaders(),
-                    'response' => array
+        $this->saveTransaction($request, $response);
+        /*$this->saveTransaction('request' => $request->getRawHeaders(), 'response' => array
                     (
                         'headers' => $response->getRawHeaders(),
                         'body' => $response->getBody(true)
-                    )
-                )
-            )
-        );
+                    ));*/
 
         $this->transactions[] = $transaction;
         if (count($this->transactions) > $this->getlimit()) {
@@ -93,11 +84,46 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
      * @param  array $transaction An array containing request/response objects
      * @return void
      */
-    private function saveTransaction($transaction)
+    private function saveTransaction($request, $response)
     {
+        //Get all of the vars
+        $data = $this->parseRequestResponse($request, $response);
+        $encodedData = json_encode($data);
+
+        $this->redis->addToSortedSet('all', $encodedData, $data['time']);
+        $this->redis->addToSortedSet($data['type'] . '_refs', $encodedData, $data['time']);
+        $this->redis->addToSortedSet('resp_code_' . $data['code'], $encodedData, $data['time']);
+        $this->redis->addToSortedSet($data['type'] . '_method_' . $data['method'], $encodedData, $data['time']);
+        $this->redis->addToSet($data['type'] . '_methods', $data['method']);
+        $this->redis->addToSet('types', $data['type']);
+        $this->redis->addToSet('response_codes', $data['code']);
+
         //$this->redis->ZADD($this->id, microtime(true), json_encode($transaction));
-        $this->redis->addToSortedSet($this->id, $transaction, time());
-        $this->redis->expire($this->id, $this->expire);
+        //$this->redis->addToSortedSet($this->id, $transaction, time());
+        //$this->redis->expire($this->id, $this->expire);
+        
+    }
+
+    private function parseRequestResponse($request, $response)
+    {
+        $data =
+        [
+            'type'    => $this->id['type'],
+            'method'  => $this->id['method'],
+            'code'    => $response->getStatusCode(),
+            'time'    => $this->id['time'],
+            'request' =>
+            [
+                'headers' => $request->getRawHeaders()
+            ],
+            'response' =>
+            [
+                'headers' => $response->getRawHeaders(),
+                'body'    => $response->getBody(true)
+            ]
+        ];
+
+        return $data;
     }
 
     /**

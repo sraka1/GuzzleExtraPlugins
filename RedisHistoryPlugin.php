@@ -90,10 +90,10 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
         $data = $this->parseRequestResponse($request, $response);
         $encodedData = json_encode($data);
 
-        $this->redis->addToSortedSet('all', $encodedData, $data['time']);
-        $this->redis->addToSortedSet($data['type'] . '_refs', $encodedData, $data['time']);
-        $this->redis->addToSortedSet('resp_code_' . $data['code'], $encodedData, $data['time']);
-        $this->redis->addToSortedSet($data['type'] . '_method_' . $data['method'], $encodedData, $data['time']);
+        $this->redis->addToSortedSet('all', $encodedData, $this->id['time']);
+        $this->redis->addToSortedSet($data['type'] . '_refs', $encodedData, $this->id['time']);
+        $this->redis->addToSortedSet('resp_code_' . $data['code'], $encodedData, $this->id['time']);
+        $this->redis->addToSortedSet($data['type'] . '_method_' . $data['method'], $encodedData, $this->id['time']);
         $this->redis->addToSet($data['type'] . '_methods', $data['method']);
         $this->redis->addToSet('types', $data['type']);
         $this->redis->addToSet('response_codes', $data['code']);
@@ -111,9 +111,10 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
             'type'    => $this->id['type'],
             'method'  => $this->id['method'],
             'code'    => $response->getStatusCode(),
-            'time'    => $this->id['time'],
+            'time'    => time(),
             'request' =>
             [
+                'url'     => $request->getUrl(),
                 'headers' => $request->getRawHeaders()
             ],
             'response' =>

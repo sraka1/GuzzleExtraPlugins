@@ -9,8 +9,8 @@ use Guzzle\Http\Message\Response;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 /**
- * Maintains a list of requests and responses sent using a request or client
- */
+* Maintains a list of requests and responses sent using a request or client
+*/
 class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate, \Countable
 {
     /** @var Rediska Redis handler */
@@ -30,14 +30,14 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
 
     public static function getSubscribedEvents()
     {
-        return array('request.sent' => array('onRequestSent', 9999));
+        return array('request.sent' => array('onRequestSent', -99999));
     }
 
     /**
-     * Convert to a string that contains all request and response headers
-     *
-     * @return string
-     */
+    * Convert to a string that contains all request and response headers
+    *
+    * @return string
+    */
     public function __toString()
     {
         $lines = array();
@@ -50,13 +50,13 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Add a request to the history
-     *
-     * @param RequestInterface $request  Request to add
-     * @param Response         $response Response of the request
-     *
-     * @return HistoryPlugin
-     */
+    * Add a request to the history
+    *
+    * @param RequestInterface $request  Request to add
+    * @param Response        $response Response of the request
+    *
+    * @return HistoryPlugin
+    */
     public function add(RequestInterface $request, Response $response = null)
     {
         if (!$response && $request->getResponse()) {
@@ -80,21 +80,24 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Save the request/response pair using the appID 
-     * @param  array $transaction An array containing request/response objects
-     * @return void
-     */
+    * Save the request/response pair using the appID 
+    * @param  array $transaction An array containing request/response objects
+    * @return void
+    */
     private function saveTransaction($request, $response)
     {
         //Get all of the vars
         $data = $this->parseRequestResponse($request, $response);
         $encodedData = json_encode($data);
+        $keyId = $this->getHashFromId();
 
-        $this->redis->addToSortedSet('all', $encodedData, $this->id['time']);
-        $this->redis->addToSortedSet($data['type'] . '_refs', $encodedData, $this->id['time']);
-        $this->redis->addToSortedSet('resp_code_' . $data['code'], $encodedData, $this->id['time']);
-        $this->redis->addToSortedSet($data['type'] . '_method_' . $data['method'], $encodedData, $this->id['time']);
+        $this->redis->set($keyId, $encodedData);
+        $this->redis->addToSortedSet('all', $keyId, $this->id['time']);
+        $this->redis->addToSortedSet($data['type'] . '_refs', $keyId, $this->id['time']);
+        $this->redis->addToSortedSet('resp_code_' . $data['code'], $keyId, $this->id['time']);
+        $this->redis->addToSortedSet($data['type'] . '_method_' . $data['method'], $keyId, $this->id['time']);
         $this->redis->addToSet($data['type'] . '_methods', $data['method']);
+        $this->redis->addToSet($data['type'] . '_response_codes', $data['code']);
         $this->redis->addToSet('types', $data['type']);
         $this->redis->addToSet('response_codes', $data['code']);
 
@@ -104,17 +107,29 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
         
     }
 
-    private function parseRequestResponse($request, $response)
+    private function getHashFromId()
     {
+        return md5(serialize($this->id));
+    }
+
+    private function parseRequestResponse($request, $response)
+    {    
+        if($response->hasHeader('X-Cache')) {
+            $isCached = $response->getHeader('X-Cache')->hasValue('HIT from GuzzleCache');
+        } else {
+            $isCached = false;
+        } 
+
         $data =
         [
             'type'    => $this->id['type'],
             'method'  => $this->id['method'],
             'code'    => $response->getStatusCode(),
-            'time'    => time(),
+            'cached'  => $isCached,
+            'time'    => microtime(true),
             'request' =>
             [
-                'url'     => $request->getUrl(),
+                'url'    => $request->getUrl(),
                 'headers' => $request->getRawHeaders()
             ],
             'response' =>
@@ -128,12 +143,12 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Set the max number of requests to store
-     *
-     * @param int $limit Limit
-     *
-     * @return HistoryPlugin
-     */
+    * Set the max number of requests to store
+    *
+    * @param int $limit Limit
+    *
+    * @return HistoryPlugin
+    */
     public function setLimit($limit)
     {
         $this->limit = (int) $limit;
@@ -142,12 +157,12 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Set the expiration in seconds
-     *
-     * @param int $expire Expiration
-     *
-     * @return HistoryPlugin
-     */
+    * Set the expiration in seconds
+    *
+    * @param int $expire Expiration
+    *
+    * @return HistoryPlugin
+    */
     public function setExpire($expire)
     {
         $this->expire = (int) $expire;
@@ -156,12 +171,12 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Set the unique ID
-     *
-     * @param string $id Limit
-     *
-     * @return HistoryPlugin
-     */
+    * Set the unique ID
+    *
+    * @param string $id Limit
+    *
+    * @return HistoryPlugin
+    */
     public function setID($id)
     {
         $this->id = $id;
@@ -170,12 +185,12 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Set redis handler
-     *
-     * @param Rediska $redis Limit
-     *
-     * @return HistoryPlugin
-     */
+    * Set redis handler
+    *
+    * @param Rediska $redis Limit
+    *
+    * @return HistoryPlugin
+    */
     public function setRedis($redis)
     {
         $this->redis = $redis;
@@ -184,31 +199,31 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Get the request limit
-     *
-     * @return int
-     */
+    * Get the request limit
+    *
+    * @return int
+    */
     public function getLimit()
     {
         return $this->limit;
     }
 
     /**
-     * Get all of the raw transactions in the form of an array of associative arrays containing
-     * 'request' and 'response' keys.
-     *
-     * @return array
-     */
+    * Get all of the raw transactions in the form of an array of associative arrays containing
+    * 'request' and 'response' keys.
+    *
+    * @return array
+    */
     public function getAll()
     {
         return $this->transactions;
     }
 
     /**
-     * Get the requests in the history
-     *
-     * @return \ArrayIterator
-     */
+    * Get the requests in the history
+    *
+    * @return \ArrayIterator
+    */
     public function getIterator()
     {
         // Return an iterator just like the old iteration of the HistoryPlugin for BC compatibility (use getAll())
@@ -219,20 +234,20 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Get the number of requests in the history
-     *
-     * @return int
-     */
+    * Get the number of requests in the history
+    *
+    * @return int
+    */
     public function count()
     {
         return count($this->transactions);
     }
 
     /**
-     * Get the last request sent
-     *
-     * @return RequestInterface
-     */
+    * Get the last request sent
+    *
+    * @return RequestInterface
+    */
     public function getLastRequest()
     {
         $last = end($this->transactions);
@@ -241,10 +256,10 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Get the last response in the history
-     *
-     * @return Response|null
-     */
+    * Get the last response in the history
+    *
+    * @return Response|null
+    */
     public function getLastResponse()
     {
         $last = end($this->transactions);
@@ -253,10 +268,10 @@ class RedisHistoryPlugin implements EventSubscriberInterface, \IteratorAggregate
     }
 
     /**
-     * Clears the history
-     *
-     * @return HistoryPlugin
-     */
+    * Clears the history
+    *
+    * @return HistoryPlugin
+    */
     public function clear()
     {
         $this->transactions = array();
